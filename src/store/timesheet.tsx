@@ -48,6 +48,7 @@ const useTimesheet = create<TimesheetState>()(
     }),
     {
       name: "timesheet-storage",
+      partialize: (state) => ({ entries: state.entries }),
     }
   )
 );
