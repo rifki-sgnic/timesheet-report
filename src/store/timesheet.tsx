@@ -11,15 +11,18 @@ export interface TimesheetEntry {
 
 interface TimesheetState {
   entries: TimesheetEntry[];
+  currentDate: Date;
   addEntry: (entry: Omit<TimesheetEntry, "id">) => void;
   removeEntry: (id: string) => void;
   setEntriesForDate: (date: string, newEntries: Omit<TimesheetEntry, "id" | "date">[]) => void;
+  setCurrentDate: (date: Date) => void;
 }
 
 const useTimesheet = create<TimesheetState>()(
   persist(
     (set) => ({
       entries: [],
+      currentDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
       addEntry: (entry) =>
         set((state) => ({
           entries: [
@@ -41,6 +44,7 @@ const useTimesheet = create<TimesheetState>()(
           }));
           return { entries: [...filtered, ...added] };
         }),
+      setCurrentDate: (date) => set({ currentDate: date }),
     }),
     {
       name: "timesheet-storage",

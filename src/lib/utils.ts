@@ -32,3 +32,25 @@ export function minutesToTime(minutes: number): string {
 
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
+
+// Helper to get Monday of the date's week as a string identifier
+export function getMonday(dateStr: string) {
+  const d = new Date(dateStr);
+  const day = d.getDay();
+  // If Sunday (0), Monday was 6 days ago. Otherwise, go back day-1 days.
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(d.setDate(diff));
+  return monday.toISOString().split("T")[0];
+}
+
+export function getLocaleDateString(date: string | null): string {
+  if (!date) return "";
+  const event = new Date(date);
+  const options = {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  } as Intl.DateTimeFormatOptions;
+
+  return event.toLocaleDateString("id-ID", options);
+}

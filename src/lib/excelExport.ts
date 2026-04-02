@@ -1,17 +1,7 @@
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import { type TimesheetEntry } from "@/store/timesheet";
-import { timeToMinutes } from "./utils";
-
-// Helper to get Monday of the date's week as a string identifier
-function getMonday(dateStr: string) {
-  const d = new Date(dateStr);
-  const day = d.getDay();
-  // If Sunday (0), Monday was 6 days ago. Otherwise, go back day-1 days.
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(d.setDate(diff));
-  return monday.toISOString().split("T")[0];
-}
+import { getMonday, timeToMinutes } from "./utils";
 
 export async function exportTimesheetToExcel(entries: TimesheetEntry[]) {
   // 1. Filter out weekends (0 = Sunday, 6 = Saturday) and sort

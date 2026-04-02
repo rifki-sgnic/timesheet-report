@@ -1,29 +1,23 @@
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
 import CalendarHeader from "./CalendarHeader";
 import MonthGrid from "./MonthGrid";
+import useTimesheet from "@/store/timesheet";
 
 export default function Calendar() {
-  const [currentDate, setCurrentDate] = useState(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
-  });
+  const { currentDate, setCurrentDate } = useTimesheet();
 
   const handlePrevMonth = useCallback(() => {
-    setCurrentDate(
-      (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
-    );
-  }, []);
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+  }, [currentDate, setCurrentDate]);
 
   const handleNextMonth = useCallback(() => {
-    setCurrentDate(
-      (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
-    );
-  }, []);
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+  }, [currentDate, setCurrentDate]);
 
   const handleToday = useCallback(() => {
     const now = new Date();
     setCurrentDate(new Date(now.getFullYear(), now.getMonth(), 1));
-  }, []);
+  }, [setCurrentDate]);
 
   return (
     <div className="flex flex-col h-full">
