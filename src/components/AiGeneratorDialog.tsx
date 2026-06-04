@@ -7,35 +7,35 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { getLocaleDateString } from "@/lib/utils";
 import useTimesheet from "@/store/timesheet";
-import { GoogleGenAI, Type } from "@google/genai";
-import { ArrowLeft, Calendar, Check, Loader2, Sparkles } from "lucide-react";
+import { ArrowLeft, Check, Loader2, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { z } from "zod";
+import {
+  InputSchema,
+  generateTimesheetFromAi,
+  formatAiError,
+} from "@/lib/timesheetAi";
+import type { GeneratedEntry } from "@/lib/timesheetAi";
+import { AiInputForm } from "./AiInputForm";
+import { AiPreviewList } from "./AiPreviewList";
 
 interface AiGeneratorDialogProps {
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
 }
 
-interface GeneratedEntry {
-  startTime: string;
-  endTime: string;
-  activity: string;
-}
-
 export function AiGeneratorDialog({
   isOpen,
   setIsOpen,
 }: AiGeneratorDialogProps) {
-  const { setEntriesForDate, geminiApiKey } = useTimesheet();
+  const { setEntriesForDate, geminiApiKey, geminiModel } = useTimesheet();
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   });
+  const [projectName, setProjectName] = useState("");
   const [aiWorklog, setAiWorklog] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [previewData, setPreviewData] = useState<Record<
@@ -49,79 +49,26 @@ export function AiGeneratorDialog({
       return;
     }
 
+    try {
+      InputSchema.parse(aiWorklog);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        toast.error(err.errors[0].message);
+      } else {
+        toast.error("Invalid worklog input.");
+      }
+      return;
+    }
+
     setIsGenerating(true);
 
-    const generatePromise = (async () => {
-      const prompt = `
-      You are a professional assistant. Convert the following rough worklog into structured timesheet entries.
-      The output MUST be a JSON object with a key "days" containing a list of date groups.
-      If the input worklog does not specify dates, default to mapping all generated entries to the selected date "${selectedDate}".
-
-      Constraints:
-      1. For each date, divide the worklog into standard working hours (usually starting from 08:00 until 17:00, with a 1-hour break between 12:00 and 13:00 if the time span covers it).
-      2. The maximum number of entries (array length) per date is 5.
-      3. Make the activity descriptions detailed, formal, and professional.
-
-      Selected Date: ${selectedDate}
-
-      Rough Worklog Input:
-      ${aiWorklog}
-
-      JSON Output (match the exact schema specified):
-`;
-
-      const ai = new GoogleGenAI({ apiKey: geminiApiKey });
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              days: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    date: { type: Type.STRING },
-                    entries: {
-                      type: Type.ARRAY,
-                      items: {
-                        type: Type.OBJECT,
-                        properties: {
-                          startTime: { type: Type.STRING },
-                          endTime: { type: Type.STRING },
-                          activity: { type: Type.STRING },
-                        },
-                        required: ["startTime", "endTime", "activity"],
-                      },
-                    },
-                  },
-                  required: ["date", "entries"],
-                },
-              },
-            },
-            required: ["days"],
-          },
-        },
-      });
-
-      const resultText = response.text;
-      if (!resultText) {
-        throw new Error("No response text returned from AI model");
-      }
-
-      const parsed = JSON.parse(resultText);
-      const days = parsed.days || [];
-      const entriesMap: Record<string, GeneratedEntry[]> = {};
-      days.forEach((day: any) => {
-        if (day.date && Array.isArray(day.entries)) {
-          entriesMap[day.date] = day.entries;
-        }
-      });
-      return entriesMap;
-    })();
+    const generatePromise = generateTimesheetFromAi(
+      aiWorklog,
+      selectedDate,
+      projectName,
+      geminiApiKey,
+      geminiModel
+    );
 
     toast.promise(generatePromise, {
       loading: "AI is parsing your worklogs...",
@@ -132,18 +79,7 @@ export function AiGeneratorDialog({
       },
       error: (err) => {
         setIsGenerating(false);
-        let errorMsg = "Failed to parse timesheet.";
-        if (err instanceof Error) {
-          try {
-            const parsed = JSON.parse(err.message);
-            errorMsg = parsed?.error?.message || err.message;
-          } catch {
-            errorMsg = err.message;
-          }
-        } else if (typeof err === "string") {
-          errorMsg = err;
-        }
-        return `Error: ${errorMsg}`;
+        return formatAiError(err);
       },
     });
   };
@@ -156,11 +92,18 @@ export function AiGeneratorDialog({
       const cleanEntries = entriesArray.slice(0, 5);
       setEntriesForDate(
         date,
-        cleanEntries.map((e) => ({
-          startTime: e.startTime,
-          endTime: e.endTime,
-          activity: e.activity,
-        })),
+        cleanEntries.map((e) => {
+          const combinedActivity = [
+            e.project.trim(),
+            e.task.trim(),
+            e.activity.trim(),
+          ].filter(Boolean).join("\n");
+          return {
+            startTime: e.startTime,
+            endTime: e.endTime,
+            activity: combinedActivity,
+          };
+        }),
       );
       totalSaved++;
     });
@@ -173,6 +116,7 @@ export function AiGeneratorDialog({
     setIsOpen(false);
     setPreviewData(null);
     setAiWorklog("");
+    setProjectName("");
     const now = new Date();
     setSelectedDate(
       `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`,
@@ -187,6 +131,7 @@ export function AiGeneratorDialog({
         if (!open) {
           setPreviewData(null);
           setAiWorklog("");
+          setProjectName("");
           const now = new Date();
           setSelectedDate(
             `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`,
@@ -224,77 +169,16 @@ export function AiGeneratorDialog({
               <strong>Gemini API Key</strong> in settings first.
             </p>
           ) : previewData ? (
-            <div className="flex flex-col gap-5">
-              {Object.entries(previewData).map(([date, entriesArray]) => (
-                <div
-                  key={date}
-                  className="border border-border rounded-xl p-4 bg-muted/20"
-                >
-                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
-                    <Calendar className="w-4 h-4 text-primary" />
-                    <span className="text-sm font-semibold">
-                      {getLocaleDateString(date)}
-                    </span>
-                  </div>
-                  {entriesArray.length === 0 ? (
-                    <p className="text-xs text-muted-foreground italic">
-                      No tasks generated for this date.
-                    </p>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      {entriesArray.map((entry, index) => (
-                        <div
-                          key={index}
-                          className="flex gap-3 text-xs bg-background p-2.5 rounded-lg border border-border/50"
-                        >
-                          <span className="font-mono font-medium text-primary shrink-0 bg-primary/5 px-2 py-0.5 rounded h-fit">
-                            {entry.startTime} - {entry.endTime}
-                          </span>
-                          <p className="text-muted-foreground leading-normal">
-                            {entry.activity}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+            <AiPreviewList previewData={previewData} />
           ) : (
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Target Date (Fallback)
-                </label>
-                <Input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="w-full text-sm h-9"
-                />
-                <span className="text-[10px] text-muted-foreground">
-                  If your worklog doesn't specify any date prefix, entries will
-                  be assigned to this date.
-                </span>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Rough Worklog Input
-                </label>
-                <Textarea
-                  value={aiWorklog}
-                  onChange={(e) => setAiWorklog(e.target.value)}
-                  placeholder={`Example multi-date log:
-2026-06-01:
-- fix checksheet pagination
-- enhance grouped checksheet view
-
-2026-06-02:
-- create early schedule generator`}
-                  className="min-h-[180px] text-sm"
-                />
-              </div>
-            </div>
+            <AiInputForm
+              selectedDate={selectedDate}
+              setSelectedDate={setSelectedDate}
+              projectName={projectName}
+              setProjectName={setProjectName}
+              aiWorklog={aiWorklog}
+              setAiWorklog={setAiWorklog}
+            />
           )}
         </div>
 
