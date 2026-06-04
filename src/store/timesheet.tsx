@@ -13,6 +13,7 @@ interface TimesheetState {
   entries: TimesheetEntry[];
   currentDate: Date;
   geminiApiKey: string;
+  geminiModel: string;
   addEntry: (entry: Omit<TimesheetEntry, "id">) => void;
   removeEntry: (id: string) => void;
   setEntriesForDate: (
@@ -21,6 +22,7 @@ interface TimesheetState {
   ) => void;
   setCurrentDate: (date: Date) => void;
   setGeminiApiKey: (key: string) => void;
+  setGeminiModel: (model: string) => void;
 }
 
 const useTimesheet = create<TimesheetState>()(
@@ -29,6 +31,7 @@ const useTimesheet = create<TimesheetState>()(
       entries: [],
       currentDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
       geminiApiKey: "",
+      geminiModel: "gemini-2.5-flash",
       addEntry: (entry) =>
         set((state) => ({
           entries: [...state.entries, { ...entry, id: crypto.randomUUID() }],
@@ -49,12 +52,14 @@ const useTimesheet = create<TimesheetState>()(
         }),
       setCurrentDate: (date) => set({ currentDate: date }),
       setGeminiApiKey: (key) => set({ geminiApiKey: key }),
+      setGeminiModel: (model) => set({ geminiModel: model }),
     }),
     {
       name: "timesheet-storage",
       partialize: (state) => ({ 
         entries: state.entries, 
-        geminiApiKey: state.geminiApiKey 
+        geminiApiKey: state.geminiApiKey,
+        geminiModel: state.geminiModel
       }),
     },
   ),
