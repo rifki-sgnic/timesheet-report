@@ -2,6 +2,7 @@ import Calendar from "./components/calendar/Calendar";
 import { Sidebar } from "./components/Sidebar";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/ui/sonner";
 
 function App() {
   return (
@@ -13,9 +14,11 @@ function App() {
             <Calendar />
           </div>
         </div>
+        <Toaster />
       </TooltipProvider>
     </ThemeProvider>
   );
 }
 
 export default App;
+

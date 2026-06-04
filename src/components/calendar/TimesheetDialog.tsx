@@ -23,8 +23,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { getLocaleDateString, minutesToTime, timeToMinutes } from "@/lib/utils";
 import useTimesheet from "@/store/timesheet";
 import {
@@ -33,7 +31,6 @@ import {
   PlusIcon,
   RotateCcw,
   Save,
-  Trash,
 } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +39,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { TimesheetRow } from "./TimesheetRow";
 
 interface TimesheetDialogProps {
   isOpen: boolean;
@@ -69,6 +67,8 @@ export function TimesheetDialog({
   const [editingDate, setEditingDate] = useState<string | null>(null);
   const [isResetAlertOpen, setIsResetAlertOpen] = useState(false);
 
+
+
   if (isOpen && selectedDate !== editingDate) {
     setEditingDate(selectedDate);
     const existing = entries.filter((e) => e.date === selectedDate);
@@ -82,18 +82,42 @@ export function TimesheetDialog({
           endTime: "10:00",
           activity: "",
         },
+        {
+          id: crypto.randomUUID(),
+          startTime: "10:00",
+          endTime: "11:00",
+          activity: "",
+        },
+        {
+          id: crypto.randomUUID(),
+          startTime: "11:00",
+          endTime: "12:00",
+          activity: "",
+        },
+        {
+          id: crypto.randomUUID(),
+          startTime: "13:00",
+          endTime: "15:00",
+          activity: "",
+        },
+        {
+          id: crypto.randomUUID(),
+          startTime: "15:00",
+          endTime: "17:00",
+          activity: "",
+        },
       ]);
     }
   }
 
   const handleAddRow = () => {
+    if (rows.length >= 5) return;
     const lastRow = rows[rows.length - 1];
     let newStartTime = "08:00";
     let newEndTime = "10:00";
 
     if (lastRow && lastRow.endTime) {
       newStartTime = lastRow.endTime;
-      // Default to 2 hours later
       newEndTime = minutesToTime(timeToMinutes(newStartTime) + 120);
     }
 
@@ -114,7 +138,7 @@ export function TimesheetDialog({
 
   const handleRowChange = (
     id: string,
-    field: keyof TimesheetFormRow,
+    field: "startTime" | "endTime" | "activity",
     value: string,
   ) => {
     setRows(rows.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
@@ -122,7 +146,7 @@ export function TimesheetDialog({
 
   const handleTotalHoursChange = (id: string, totalHoursRaw: string) => {
     const val = parseFloat(totalHoursRaw);
-    if (isNaN(val)) return; // Let user clear it or type weirdly without crashing
+    if (isNaN(val)) return;
 
     setRows(
       rows.map((r) => {
@@ -140,7 +164,7 @@ export function TimesheetDialog({
     if (!start || !end) return "";
     const diff = timeToMinutes(end) - timeToMinutes(start);
     const hrs = diff / 60;
-    return hrs.toFixed(1).replace(/\.0$/, ""); // e.g. 2.0 -> 2, 2.5 -> 2.5
+    return hrs.toFixed(1).replace(/\.0$/, "");
   };
 
   const handleReset = () => {
@@ -152,6 +176,30 @@ export function TimesheetDialog({
         id: crypto.randomUUID(),
         startTime: "08:00",
         endTime: "10:00",
+        activity: "",
+      },
+      {
+        id: crypto.randomUUID(),
+        startTime: "10:00",
+        endTime: "11:00",
+        activity: "",
+      },
+      {
+        id: crypto.randomUUID(),
+        startTime: "11:00",
+        endTime: "12:00",
+        activity: "",
+      },
+      {
+        id: crypto.randomUUID(),
+        startTime: "13:00",
+        endTime: "15:00",
+        activity: "",
+      },
+      {
+        id: crypto.randomUUID(),
+        startTime: "15:00",
+        endTime: "17:00",
         activity: "",
       },
     ]);
@@ -198,7 +246,6 @@ export function TimesheetDialog({
   const handleSave = () => {
     if (!selectedDate) return;
 
-    // Filter out rows that are completely empty or missing required fields
     const validRows = rows.filter(
       (r) => r.startTime && r.endTime && r.activity,
     );
@@ -222,7 +269,7 @@ export function TimesheetDialog({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
               <span>Add Timesheet for {getLocaleDateString(selectedDate)}</span>
-              {holiday && (
+              {holiday ? (
                 <Tooltip delayDuration={300}>
                   <TooltipTrigger asChild>
                     <Badge className="bg-green-600 hover:bg-green-600/90 text-white cursor-help opacity-90 hover:opacity-100">
@@ -233,7 +280,7 @@ export function TimesheetDialog({
                     <p>{holiday}</p>
                   </TooltipContent>
                 </Tooltip>
-              )}
+              ) : null}
             </DialogTitle>
             <DialogDescription>
               Input multiple timesheet entries below.
@@ -242,72 +289,17 @@ export function TimesheetDialog({
 
           <div className="flex flex-col gap-5 py-4 max-h-[60vh] overflow-y-auto pr-2">
             {rows.map((row) => {
-              const totalHours = calculateTotalHours(
-                row.startTime,
-                row.endTime,
-              );
+              const totalHours = calculateTotalHours(row.startTime, row.endTime);
               return (
-                <div
+                <TimesheetRow
                   key={row.id}
-                  className="flex items-start gap-3 bg-muted/30 p-3 rounded-lg border border-border"
-                >
-                  <div className="flex flex-col gap-2 shrink-0">
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="time"
-                        value={row.startTime}
-                        onChange={(e) =>
-                          handleRowChange(row.id, "startTime", e.target.value)
-                        }
-                        className="w-[100px]"
-                      />
-                      <span className="text-muted-foreground">-</span>
-                      <Input
-                        type="time"
-                        value={row.endTime}
-                        onChange={(e) =>
-                          handleRowChange(row.id, "endTime", e.target.value)
-                        }
-                        className="w-[100px]"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground font-medium pl-1 w-[40px]">
-                        Total:
-                      </span>
-                      <Input
-                        type="number"
-                        step="0.5"
-                        value={totalHours}
-                        onChange={(e) =>
-                          handleTotalHoursChange(row.id, e.target.value)
-                        }
-                        className="w-[80px] h-8 text-sm"
-                        placeholder="Hrs"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex-1 flex gap-2 h-full">
-                    <Textarea
-                      value={row.activity}
-                      onChange={(e) =>
-                        handleRowChange(row.id, "activity", e.target.value)
-                      }
-                      placeholder="Activity detail..."
-                      className="flex-1 resize-none h-[72px]"
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleRemoveRow(row.id)}
-                      disabled={rows.length === 1}
-                      className="shrink-0 text-destructive hover:bg-destructive/10 h-full w-[40px]"
-                    >
-                      <Trash className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
+                  row={row}
+                  totalHours={totalHours}
+                  onRowChange={handleRowChange}
+                  onTotalHoursChange={handleTotalHoursChange}
+                  onRemoveRow={handleRemoveRow}
+                  disableRemove={rows.length === 1}
+                />
               );
             })}
           </div>
@@ -316,7 +308,7 @@ export function TimesheetDialog({
             size="sm"
             onClick={handleAddRow}
             className="w-fit border-dashed"
-            disabled={rows.length === 5}
+            disabled={rows.length >= 5}
           >
             <PlusIcon className="w-4 h-4" /> Add Another Time Block
           </Button>
