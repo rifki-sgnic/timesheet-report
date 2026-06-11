@@ -1,26 +1,29 @@
 import { Button } from "@/components/ui/button";
-import useTimesheet from "@/store/timesheet";
-import { Download, CalendarDays, Loader2, Clock, Briefcase } from "lucide-react";
-import { exportTimesheetToExcel } from "@/lib/excelExport";
-import { useMemo, useState } from "react";
-import { getDaysInMonth, timeToMinutes } from "@/lib/utils";
 import holidaysDataRaw from "@/data/holidays.json";
+import { exportTimesheetToExcel } from "@/lib/excelExport";
+import { getDaysInMonth, timeToMinutes } from "@/lib/utils";
+import useTimesheet from "@/store/timesheet";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-
-import { ThemeToggle } from "@/components/ThemeToggle";
+  Briefcase,
+  CalendarDays,
+  Clock,
+  Download,
+  Loader2,
+  Settings,
+  Sparkles,
+} from "lucide-react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
+import { AiGeneratorDialog } from "./AiGeneratorDialog";
+import { ExportDialog } from "./ExportDialog";
+import { SettingsDialog } from "./SettingsDialog";
 
 export function Sidebar() {
   const { entries, currentDate } = useTimesheet();
   const [isExporting, setIsExporting] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [aiGeneratorOpen, setAiGeneratorOpen] = useState(false);
 
   const currentYear = currentDate.getFullYear();
   const currentMonth = currentDate.getMonth();
@@ -43,7 +46,9 @@ export function Sidebar() {
     vEvents.forEach((event: any) => {
       const dtStart = event["DTSTART;VALUE=DATE"];
       if (dtStart && dtStart.startsWith(yearStr + monthStr)) {
-        holidays.add(`${dtStart.slice(0, 4)}-${dtStart.slice(4, 6)}-${dtStart.slice(6, 8)}`);
+        holidays.add(
+          `${dtStart.slice(0, 4)}-${dtStart.slice(4, 6)}-${dtStart.slice(6, 8)}`,
+        );
       }
     });
 
@@ -63,11 +68,14 @@ export function Sidebar() {
 
     const actualWorkDays = new Set(monthEntries.map((e) => e.date)).size;
     const actualWorkMinutes = monthEntries.reduce((acc, entry) => {
-      const duration = timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime);
+      const duration =
+        timeToMinutes(entry.endTime) - timeToMinutes(entry.startTime);
       return acc + (duration > 0 ? duration : 0);
     }, 0);
 
-    const actualWorkHours = parseFloat((actualWorkMinutes / 60).toFixed(1).replace(/\.0$/, ""));
+    const actualWorkHours = parseFloat(
+      (actualWorkMinutes / 60).toFixed(1).replace(/\.0$/, ""),
+    );
     const totalWorkHours = totalWorkDays * 8;
 
     return {
@@ -80,7 +88,7 @@ export function Sidebar() {
 
   const handleExport = async () => {
     if (!selectedMonth) {
-      alert("Please select a month first.");
+      toast.error("Please select a month first.");
       return;
     }
 
@@ -89,7 +97,7 @@ export function Sidebar() {
     );
 
     if (filteredEntries.length === 0) {
-      alert(`No timesheet entries found for ${selectedMonth}!`);
+      toast.warning(`No timesheet entries found for ${selectedMonth}!`);
       return;
     }
 
@@ -97,8 +105,9 @@ export function Sidebar() {
       setIsExporting(true);
       await exportTimesheetToExcel(filteredEntries);
       setExportDialogOpen(false);
+      toast.success("Timesheet exported successfully!");
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Failed to export.");
+      toast.error(error instanceof Error ? error.message : "Failed to export.");
     } finally {
       setIsExporting(false);
     }
@@ -112,9 +121,6 @@ export function Sidebar() {
             <CalendarDays className="w-5 h-5" />
           </div>
           <h1 className="font-semibold text-lg tracking-tight">Timesheet</h1>
-          <div className="ml-auto">
-            <ThemeToggle />
-          </div>
         </div>
 
         <div className="flex-1 flex flex-col gap-4 mt-4 overflow-y-auto hidden-scrollbar">
@@ -128,7 +134,9 @@ export function Sidebar() {
                   <Briefcase className="w-4 h-4 text-primary" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-[10px] text-muted-foreground font-medium">Work Days</span>
+                  <span className="text-[10px] text-muted-foreground font-medium">
+                    Work Days
+                  </span>
                   <span className="text-sm font-semibold">
                     {stats.actualWorkDays}/{stats.totalWorkDays}
                   </span>
@@ -139,13 +147,37 @@ export function Sidebar() {
                   <Clock className="w-4 h-4 text-primary" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-[10px] text-muted-foreground font-medium">Work Hours</span>
+                  <span className="text-[10px] text-muted-foreground font-medium">
+                    Work Hours
+                  </span>
                   <span className="text-sm font-semibold">
                     {stats.actualWorkHours}/{stats.totalWorkHours}
                   </span>
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="flex flex-col gap-3 px-2">
+            <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+              General
+            </h2>
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-2.5 text-sm h-9 px-3 font-medium hover:bg-muted/50"
+              onClick={() => setAiGeneratorOpen(true)}
+            >
+              <Sparkles className="w-4 h-4 text-primary" />
+              Generate with AI
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-2.5 text-sm h-9 px-3 font-medium hover:bg-muted/50"
+              onClick={() => setSettingsOpen(true)}
+            >
+              <Settings className="w-4 h-4 text-primary" />
+              Settings
+            </Button>
           </div>
         </div>
 
@@ -166,38 +198,25 @@ export function Sidebar() {
         </div>
       </div>
 
-      <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Export Monthly Timesheet</DialogTitle>
-            <DialogDescription>
-              Select the month you want to export as an Excel spreadsheet.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <Input
-              type="month"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="w-full"
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setExportDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleExport}
-              disabled={!selectedMonth || isExporting}
-            >
-              {isExporting ? "Exporting..." : "Export"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ExportDialog
+        isOpen={exportDialogOpen}
+        setIsOpen={setExportDialogOpen}
+        selectedMonth={selectedMonth}
+        setSelectedMonth={setSelectedMonth}
+        handleExport={handleExport}
+        isExporting={isExporting}
+      />
+
+      {settingsOpen ? (
+        <SettingsDialog isOpen={settingsOpen} setIsOpen={setSettingsOpen} />
+      ) : null}
+
+      {aiGeneratorOpen ? (
+        <AiGeneratorDialog
+          isOpen={aiGeneratorOpen}
+          setIsOpen={setAiGeneratorOpen}
+        />
+      ) : null}
     </>
   );
 }

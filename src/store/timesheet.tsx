@@ -12,10 +12,15 @@ export interface TimesheetEntry {
 interface TimesheetState {
   entries: TimesheetEntry[];
   currentDate: Date;
+  geminiApiKey: string;
   addEntry: (entry: Omit<TimesheetEntry, "id">) => void;
   removeEntry: (id: string) => void;
-  setEntriesForDate: (date: string, newEntries: Omit<TimesheetEntry, "id" | "date">[]) => void;
+  setEntriesForDate: (
+    date: string,
+    newEntries: Omit<TimesheetEntry, "id" | "date">[],
+  ) => void;
   setCurrentDate: (date: Date) => void;
+  setGeminiApiKey: (key: string) => void;
 }
 
 const useTimesheet = create<TimesheetState>()(
@@ -23,12 +28,10 @@ const useTimesheet = create<TimesheetState>()(
     (set) => ({
       entries: [],
       currentDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+      geminiApiKey: "",
       addEntry: (entry) =>
         set((state) => ({
-          entries: [
-            ...state.entries,
-            { ...entry, id: Math.random().toString(36).substring(2, 9) },
-          ],
+          entries: [...state.entries, { ...entry, id: crypto.randomUUID() }],
         })),
       removeEntry: (id) =>
         set((state) => ({
@@ -40,17 +43,21 @@ const useTimesheet = create<TimesheetState>()(
           const added = newEntries.map((e) => ({
             ...e,
             date,
-            id: Math.random().toString(36).substring(2, 9),
+            id: crypto.randomUUID(),
           }));
           return { entries: [...filtered, ...added] };
         }),
       setCurrentDate: (date) => set({ currentDate: date }),
+      setGeminiApiKey: (key) => set({ geminiApiKey: key }),
     }),
     {
       name: "timesheet-storage",
-      partialize: (state) => ({ entries: state.entries }),
-    }
-  )
+      partialize: (state) => ({ 
+        entries: state.entries, 
+        geminiApiKey: state.geminiApiKey 
+      }),
+    },
+  ),
 );
 
 export default useTimesheet;
